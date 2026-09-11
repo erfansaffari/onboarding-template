@@ -23,12 +23,15 @@ public:
   double& operator()(std::size_t i, std::size_t j){
     return data_[i * cols_ + j];
   }
-  double  operator()(std::size_t i, std::size_t j) const{
+
+  double operator()(std::size_t i, std::size_t j) const{
     return data_[i * cols_ + j];
   }
+
   std::size_t rows() const{
     return rows_;
   }
+
   std::size_t cols() const{
     return cols_;
   }
@@ -46,30 +49,38 @@ void apply_stencil(const Grid& old_grid, Grid& new_grid){
   // Copy left and right. 
   for (std::size_t i = 0; i < rows; ++i){
     new_grid(i, 0) = old_grid(i, 0);
+
     if (cols > 1) {
       new_grid(i, cols - 1) = old_grid(i, cols - 1);
     } 
   }
+
   // Copy top and bottom.
   for (std::size_t j = 0; j < cols; ++j){
     new_grid(0, j) = old_grid(0, j);
+
     if (rows > 1) {
       new_grid(rows - 1, j) = old_grid(rows - 1, j);
     }
   }
+
   if (rows < 3 || cols < 3) return;
 
+  // Each row can be calculated independently.
+  #pragma omp parallel for schedule(static)
   for (std::size_t i = 1; i < rows - 1; ++i) {
+
+    // Allow the compiler to vectorize the inner loop.
+    #pragma omp simd
     for (std::size_t j = 1; j < cols - 1; ++j) {
-        new_grid(i, j) =
-            0.5 * old_grid(i, j) +
-            0.125 * (
-                old_grid(i - 1, j) +
-                old_grid(i + 1, j) +
-                old_grid(i, j - 1) +
-                old_grid(i, j + 1)
-            );
+      new_grid(i, j) =
+          0.5 * old_grid(i, j) +
+          0.125 * (
+              old_grid(i - 1, j) +
+              old_grid(i + 1, j) +
+              old_grid(i, j - 1) +
+              old_grid(i, j + 1)
+          );
     }
   }
-
 }
