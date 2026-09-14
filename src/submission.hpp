@@ -56,8 +56,10 @@ inline void apply_stencil(const Grid& old_grid, Grid& new_grid) {
     return;
   }
 
-  const double* old_data = old_grid.data();
-  double* new_data = new_grid.data();
+  // The benchmark uses separate input and output grids, so these buffers
+  // do not overlap.
+  const double* __restrict old_data = old_grid.data();
+  double* __restrict new_data = new_grid.data();
 
   // Small grids have no interior points, so everything is boundary.
   if (rows < 3 || cols < 3) {
@@ -82,7 +84,6 @@ inline void apply_stencil(const Grid& old_grid, Grid& new_grid) {
     cols * sizeof(double)
   );
 
-  // Each output row is independent, so rows can be split across threads.
   #pragma omp parallel for schedule(static)
   for (std::size_t i = 1; i < rows - 1; ++i) {
     const double* top = old_data + (i - 1) * cols;
@@ -90,11 +91,9 @@ inline void apply_stencil(const Grid& old_grid, Grid& new_grid) {
     const double* bottom = old_data + (i + 1) * cols;
     double* out = new_data + i * cols;
 
-    // Left and right boundaries stay unchanged.
     out[0] = mid[0];
     out[cols - 1] = mid[cols - 1];
 
-    // Consecutive columns are consecutive in memory, which is SIMD-friendly.
     #pragma omp simd
     for (std::size_t j = 1; j < cols - 1; ++j) {
       out[j] =
